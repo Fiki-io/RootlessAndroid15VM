@@ -1,0 +1,20 @@
+# Build Artifacts
+build/
+app/build/
+.gradle/
+*.apk
+*.aab
+
+# Container & ROM Files (ROM is in GitHub Releases)
+rootfs/
+system.img
+system_raw.img
+android15_rootfs.tar.xz
+aosp_arm64_android15_gsi.zip
+vm_cli_runner
+
+# IDE & OS
+.idea/
+*.iml
+.DS_Store
+*.swp
