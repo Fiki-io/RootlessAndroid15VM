@@ -64,7 +64,7 @@ public class MainActivity extends Activity {
     private void setupControls() {
         if (!mRomManager.isROMInstalled()) {
             mTvStatus.setText("Status: ROM Android 15 belum terinstall.");
-            mBtnStartStop.setText("Install ROM Android 15");
+            mBtnStartStop.setText("Download & Install ROM (GitHub)");
         } else {
             mTvStatus.setText("Status: ROM Siap Dijalankan.");
             mBtnStartStop.setText("Start Android 15");
@@ -72,45 +72,19 @@ public class MainActivity extends Activity {
 
         mBtnStartStop.setOnClickListener(v -> {
             if (!mRomManager.isROMInstalled()) {
-                File localArchive = new File("/sdcard/Download/android15_rootfs.tar.xz");
-                if (!localArchive.exists()) {
-                    Toast.makeText(this, "Letakkan file android15_rootfs.tar.xz di folder Download!", Toast.LENGTH_LONG).show();
-                    return;
-                }
-
                 mProgressBar.setVisibility(View.VISIBLE);
-                mTvStatus.setText("Mengekstrak ROM...");
-                mRomManager.installROMFromLocalFile(localArchive, new ROMManager.ProgressCallback() {
-                    @Override
-                    public void onProgress(int percent, String message) {
-                        runOnUiThread(() -> {
-                            mProgressBar.setProgress(percent);
-                            mTvStatus.setText("Progress: " + percent + "% - " + message);
-                        });
-                    }
+                mTvStatus.setText("Menghubungkan ke GitHub Release...");
 
-                    @Override
-                    public void onSuccess(File rootfsDir) {
-                        runOnUiThread(() -> {
-                            mProgressBar.setVisibility(View.GONE);
-                            mTvStatus.setText("Status: ROM Terpasang.");
-                            mBtnStartStop.setText("Start Android 15");
-                            Toast.makeText(MainActivity.this, "ROM Berhasil Dipasang!", Toast.LENGTH_SHORT).show();
-                        });
-                    }
-
-                    @Override
-                    public void onError(String error) {
-                        runOnUiThread(() -> {
-                            mProgressBar.setVisibility(View.GONE);
-                            mTvStatus.setText("Error: " + error);
-                            Toast.makeText(MainActivity.this, "Gagal: " + error, Toast.LENGTH_LONG).show();
-                        });
-                    }
-                });
+                // Cek apakah ada file lokal di /sdcard/Download
+                File localArchive = new File("/sdcard/Download/android15_rootfs.tar.xz");
+                if (localArchive.exists()) {
+                    mRomManager.installROMFromLocalFile(localArchive, createInstallCallback());
+                } else {
+                    // Download otomatis dari GitHub Release asset
+                    mRomManager.downloadAndInstallROM(ROMManager.DEFAULT_ROM_URL, createInstallCallback());
+                }
             } else {
                 if (!mIsRunning) {
-                    // Mulai VM
                     File rootfs = mRomManager.getRootfsDir();
                     boolean success = VMEngine.getInstance().start(rootfs.getAbsolutePath(), "/init_guest.sh");
                     if (success) {
@@ -119,7 +93,6 @@ public class MainActivity extends Activity {
                         mBtnStartStop.setBackgroundColor(0xFFFF5252);
                         mTvStatus.setText("Status: Android 15 Sedang Berjalan (Rootless).");
 
-                        // Mulai Foreground Service
                         Intent serviceIntent = new Intent(this, VMForegroundService.class);
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                             startForegroundService(serviceIntent);
@@ -128,19 +101,48 @@ public class MainActivity extends Activity {
                         }
                     }
                 } else {
-                    // Hentikan VM
                     VMEngine.getInstance().stop();
                     mIsRunning = false;
                     mBtnStartStop.setText("Start Android 15");
                     mBtnStartStop.setBackgroundColor(0xFF00E676);
                     mTvStatus.setText("Status: Virtual Machine Dihentikan.");
 
-                    // Hentikan Foreground Service
                     Intent serviceIntent = new Intent(this, VMForegroundService.class);
                     stopService(serviceIntent);
                 }
             }
         });
+    }
+
+    private ROMManager.ProgressCallback createInstallCallback() {
+        return new ROMManager.ProgressCallback() {
+            @Override
+            public void onProgress(int percent, String message) {
+                runOnUiThread(() -> {
+                    mProgressBar.setProgress(percent);
+                    mTvStatus.setText("Progress: " + percent + "% - " + message);
+                });
+            }
+
+            @Override
+            public void onSuccess(File rootfsDir) {
+                runOnUiThread(() -> {
+                    mProgressBar.setVisibility(View.GONE);
+                    mTvStatus.setText("Status: ROM Terpasang.");
+                    mBtnStartStop.setText("Start Android 15");
+                    Toast.makeText(MainActivity.this, "ROM Android 15 Berhasil Dipasang!", Toast.LENGTH_SHORT).show();
+                });
+            }
+
+            @Override
+            public void onError(String error) {
+                runOnUiThread(() -> {
+                    mProgressBar.setVisibility(View.GONE);
+                    mTvStatus.setText("Error: " + error);
+                    Toast.makeText(MainActivity.this, "Gagal: " + error, Toast.LENGTH_LONG).show();
+                });
+            }
+        };
     }
 
     @Override

@@ -3,19 +3,23 @@ package com.vm.engine;
 import android.content.Context;
 import android.util.Log;
 
+import java.io.BufferedInputStream;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
 /**
- * ROMManager: Menangani download, verifikasi, dan ekstraksi RootFS Android 15.
+ * ROMManager: Menangani download langsung dari GitHub Release, verifikasi,
+ * dan ekstraksi RootFS Android 15.
  */
 public class ROMManager {
 
     private static final String TAG = "ROMManager";
+    public static final String DEFAULT_ROM_URL = 
+            "https://github.com/Fiki-io/RootlessAndroid15VM/releases/download/v1.0.0-a15/android15_rootfs.tar.xz";
+
     private final Context mContext;
 
     public interface ProgressCallback {
@@ -49,7 +53,6 @@ public class ROMManager {
                 }
 
                 callback.onProgress(30, "Mengekstrak file ROM Android 15...");
-                // Jalankan ekstraksi tar / archive
                 Process process = Runtime.getRuntime().exec(new String[]{
                         "tar", "-xf", archiveFile.getAbsolutePath(), "-C", rootfsDir.getAbsolutePath()
                 });
@@ -64,6 +67,46 @@ public class ROMManager {
             } catch (Exception e) {
                 Log.e(TAG, "Error installing ROM", e);
                 callback.onError(e.getMessage());
+            }
+        }).start();
+    }
+
+    public void downloadAndInstallROM(String downloadUrl, ProgressCallback callback) {
+        new Thread(() -> {
+            File tempArchive = new File(mContext.getCacheDir(), "android15_rootfs.tar.xz");
+            try {
+                callback.onProgress(5, "Menghubungkan ke GitHub Release...");
+                URL url = new URL(downloadUrl);
+                HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+                connection.setInstanceFollowRedirects(true);
+                connection.connect();
+
+                int fileLength = connection.getContentLength();
+                InputStream input = new BufferedInputStream(connection.getInputStream());
+                FileOutputStream output = new FileOutputStream(tempArchive);
+
+                byte[] data = new byte[8192];
+                long total = 0;
+                int count;
+                while ((count = input.read(data)) != -1) {
+                    total += count;
+                    if (fileLength > 0) {
+                        int percent = (int) (total * 50 / fileLength); // 0% - 50% untuk download
+                        callback.onProgress(5 + percent, "Mengunduh ROM (" + (total / (1024 * 1024)) + " MB)...");
+                    }
+                    output.write(data, 0, count);
+                }
+
+                output.flush();
+                output.close();
+                input.close();
+
+                // Lanjut ke ekstraksi
+                installROMFromLocalFile(tempArchive, callback);
+
+            } catch (Exception e) {
+                Log.e(TAG, "Error downloading ROM", e);
+                callback.onError("Gagal mengunduh ROM: " + e.getMessage());
             }
         }).start();
     }
